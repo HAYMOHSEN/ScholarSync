@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B8EF5"/>
+      <stop offset="1" stop-color="#0A4FA0"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCEBFF"/>
+    </linearGradient>
+    <radialGradient id="hl" cx="0.25" cy="0.15" r="0.9">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#032B5C" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- soft highlight -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#hl)"/>
+  <!-- sync arcs -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.32" stroke-width="22" stroke-linecap="round">
+    <path d="M 118 300 A 150 150 0 0 1 238 110"/>
+    <path d="M 394 212 A 150 150 0 0 1 274 402"/>
+  </g>
+  <g fill="#ffffff" fill-opacity="0.32">
+    <path d="M 226 84 L 268 116 L 222 142 Z"/>
+    <path d="M 286 428 L 244 396 L 290 370 Z"/>
+  </g>
+  <!-- cap -->
+  <g filter="url(#shadow)">
+    <path d="M 256 150 L 416 222 L 256 294 L 96 222 Z" fill="url(#cap)"/>
+    <path d="M 172 262 L 172 318 Q 256 366 340 318 L 340 262 Q 256 310 172 262 Z" fill="#ffffff" fill-opacity="0.95"/>
+  </g>
+  <!-- tassel -->
+  <path d="M 416 222 L 416 318" stroke="#FFC247" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="416" cy="332" r="17" fill="#FFC247"/>
+</svg>

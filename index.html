@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ScholarSync</title>
+  <meta name="description" content="ScholarSync — the student planner for Windows: weekly timetable, assignment tracker, GPA calculator and focus timer. Works fully offline, in English and Arabic.">
+  <meta name="application-name" content="ScholarSync">
+  <meta name="theme-color" content="#202020">
+  <meta name="color-scheme" content="dark light">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    /* Apply the saved theme and language before first paint (prevents a flash). */
+    (function () {
+      try {
+        var raw = localStorage.getItem('scholarsync.v2');
+        var s = raw ? (JSON.parse(raw).settings || {}) : {};
+        var theme = s.theme || 'system';
+        if (theme === 'system') theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        var lang = s.language || (((navigator.language || '').toLowerCase().indexOf('ar') === 0) ? 'ar' : 'en');
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      } catch (e) { /* ignore */ }
+    })();
+  </script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+
+  <!-- Title bar strip, shown only when the installed app uses Window Controls Overlay -->
+  <div class="titlebar" aria-hidden="true">
+    <span data-icon="graduation-cap"></span>
+    <span class="titlebar-title">ScholarSync</span>
+  </div>
+
+  <div class="app" id="app">
+    <!-- ===================== Navigation ===================== -->
+    <nav class="nav" aria-label="Main navigation">
+      <div class="nav-brand">
+        <div class="brand-mark" aria-hidden="true"><span data-icon="graduation-cap"></span></div>
+        <span class="brand-name">ScholarSync</span>
+      </div>
+      <ul class="nav-list">
+        <li><button class="nav-item is-active" data-view="dashboard" type="button"><span data-icon="layout-dashboard"></span><span class="nav-label" data-i18n="nav.dashboard">Dashboard</span></button></li>
+        <li><button class="nav-item" data-view="timetable" type="button"><span data-icon="calendar-days"></span><span class="nav-label" data-i18n="nav.timetable">Timetable</span></button></li>
+        <li><button class="nav-item" data-view="assignments" type="button"><span data-icon="square-check-big"></span><span class="nav-label" data-i18n="nav.assignments">Assignments</span><span class="nav-badge" id="nav-badge-assignments" hidden>0</span></button></li>
+        <li><button class="nav-item" data-view="gpa" type="button"><span data-icon="calculator"></span><span class="nav-label" data-i18n="nav.gpa">GPA</span></button></li>
+        <li><button class="nav-item" data-view="focus" type="button"><span data-icon="timer"></span><span class="nav-label" data-i18n="nav.focus">Focus</span></button></li>
+      </ul>
+      <div class="nav-footer">
+        <button class="nav-item" data-view="settings" type="button"><span data-icon="settings"></span><span class="nav-label" data-i18n="nav.settings">Settings</span></button>
+      </div>
+    </nav>
+
+    <!-- ===================== Content ===================== -->
+    <main class="content" id="content">
+
+      <!-- ---------- Dashboard ---------- -->
+      <section class="view page" id="view-dashboard">
+        <header class="page-header">
+          <div>
+            <h1 class="title" id="dash-greeting">Welcome</h1>
+            <p class="subtitle" id="dash-date"></p>
+          </div>
+          <div class="header-actions">
+            <button class="btn" type="button" data-action="add-assignment"><span data-icon="plus"></span><span data-i18n="dash.addAssignment">Assignment</span></button>
+            <button class="btn" type="button" data-action="add-class"><span data-icon="plus"></span><span data-i18n="dash.addClass">Class</span></button>
+            <button class="btn accent" type="button" data-action="go-focus"><span data-icon="timer"></span><span data-i18n="dash.startFocus">Start focus</span></button>
+          </div>
+        </header>
+
+        <div class="stats-grid">
+          <article class="card stat">
+            <div class="stat-head"><span data-i18n="dash.gpa">Cumulative GPA</span><span class="stat-icon blue"><span data-icon="trending-up"></span></span></div>
+            <div class="stat-value num" id="stat-gpa">—</div>
+            <div class="stat-foot" id="stat-gpa-foot"></div>
+          </article>
+          <article class="card stat">
+            <div class="stat-head"><span data-i18n="dash.pending">Pending assignments</span><span class="stat-icon amber"><span data-icon="circle-alert"></span></span></div>
+            <div class="stat-value num" id="stat-pending">0</div>
+            <div class="stat-foot" id="stat-pending-foot"></div>
+          </article>
+          <article class="card stat">
+            <div class="stat-head"><span data-i18n="dash.nextClass">Next class</span><span class="stat-icon green"><span data-icon="clock"></span></span></div>
+            <div class="stat-value small" id="stat-next-class">—</div>
+            <div class="stat-foot" id="stat-next-foot"></div>
+          </article>
+          <article class="card stat">
+            <div class="stat-head"><span data-i18n="dash.focusToday">Focus today</span><span class="stat-icon purple"><span data-icon="timer"></span></span></div>
+            <div class="stat-value num" id="stat-focus">0</div>
+            <div class="stat-foot" id="stat-focus-foot"></div>
+          </article>
+        </div>
+
+        <div class="dash-grid">
+          <article class="card">
+            <div class="card-head">
+              <h2 class="h2" data-i18n="dash.deadlines">Upcoming deadlines</h2>
+              <button class="link" type="button" data-view-link="assignments"><span data-i18n="dash.viewAll">View all</span><span data-icon="arrow-right" class="flip-wrap"></span></button>
+            </div>
+            <div class="list" id="dash-deadlines"></div>
+          </article>
+          <article class="card">
+            <div class="card-head">
+              <h2 class="h2" id="dash-classes-title" data-i18n="dash.todayClasses">Today's classes</h2>
+              <button class="link" type="button" data-view-link="timetable"><span data-i18n="dash.timetable">Timetable</span><span data-icon="arrow-right" class="flip-wrap"></span></button>
+            </div>
+            <div class="list" id="dash-classes"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ---------- Timetable ---------- -->
+      <section class="view page" id="view-timetable" hidden>
+        <header class="page-header">
+          <div>
+            <h1 class="title" data-i18n="tt.title">Timetable</h1>
+            <p class="subtitle" data-i18n="tt.subtitle">Your weekly classes, lectures and labs.</p>
+          </div>
+          <div class="header-actions">
+            <div class="segmented" role="tablist" id="tt-mode">
+              <button type="button" class="is-active" data-tt-mode="day" role="tab" data-i18n="tt.day">Day</button>
+              <button type="button" data-tt-mode="week" role="tab" data-i18n="tt.week">Week</button>
+            </div>
+            <button class="btn accent" type="button" data-action="add-class"><span data-icon="plus"></span><span data-i18n="tt.addClass">Add class</span></button>
+          </div>
+        </header>
+        <div id="tt-day-view">
+          <div class="chips" id="tt-day-tabs"></div>
+          <div class="tt-cards" id="tt-day-list"></div>
+        </div>
+        <div id="tt-week-view" hidden>
+          <div class="card week" id="tt-week"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Assignments ---------- -->
+      <section class="view page" id="view-assignments" hidden>
+        <header class="page-header">
+          <div>
+            <h1 class="title" data-i18n="as.title">Assignments</h1>
+            <p class="subtitle" data-i18n="as.subtitle">Homework, projects and exams — never miss a deadline.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn accent" type="button" data-action="add-assignment"><span data-icon="plus"></span><span data-i18n="as.add">Add assignment</span></button>
+          </div>
+        </header>
+        <div class="chips" id="as-filters">
+          <button type="button" class="chip is-active" data-filter="all"><span data-i18n="as.filter.all">All</span> <span class="count" id="as-count-all"></span></button>
+          <button type="button" class="chip" data-filter="pending"><span data-i18n="as.filter.pending">Pending</span> <span class="count" id="as-count-pending"></span></button>
+          <button type="button" class="chip" data-filter="overdue"><span data-i18n="as.filter.overdue">Overdue</span> <span class="count" id="as-count-overdue"></span></button>
+          <button type="button" class="chip" data-filter="completed"><span data-i18n="as.filter.completed">Completed</span> <span class="count" id="as-count-completed"></span></button>
+        </div>
+        <div class="card flat list-sections" id="as-list"></div>
+      </section>
+
+      <!-- ---------- GPA ---------- -->
+      <section class="view page" id="view-gpa" hidden>
+        <header class="page-header">
+          <div>
+            <h1 class="title" data-i18n="gpa.title">GPA calculator</h1>
+            <p class="subtitle" data-i18n="gpa.subtitle">Track every semester and your cumulative standing.</p>
+          </div>
+          <div class="header-actions">
+            <select class="select" id="gpa-semester" aria-label="Semester" style="min-width: 180px; width: auto;"></select>
+            <button class="btn icon-only" type="button" data-action="add-semester" data-i18n-title="gpa.addSemester"><span data-icon="plus"></span></button>
+            <button class="btn icon-only" type="button" data-action="rename-semester" data-i18n-title="gpa.renameSemester"><span data-icon="pencil"></span></button>
+            <button class="btn icon-only" type="button" data-action="delete-semester" data-i18n-title="gpa.deleteSemester"><span data-icon="trash-2"></span></button>
+            <button class="btn accent" type="button" data-action="add-course"><span data-icon="plus"></span><span data-i18n="gpa.addCourse">Add course</span></button>
+          </div>
+        </header>
+
+        <div class="stats-grid">
+          <article class="card stat gpa-hero">
+            <span class="muted strong" data-i18n="gpa.semesterGpa">Semester GPA</span>
+            <div class="big num" id="gpa-semester-value">—</div>
+            <span class="caption" id="gpa-semester-credits"></span>
+          </article>
+          <article class="card stat gpa-hero">
+            <span class="muted strong" data-i18n="gpa.cumulative">Cumulative GPA</span>
+            <div class="big num" id="gpa-cumulative-value">—</div>
+            <span class="caption" id="gpa-cumulative-credits"></span>
+          </article>
+          <article class="card stat gpa-hero">
+            <span class="muted strong" data-i18n="gpa.scaleLabel">Grading scale</span>
+            <div class="h2" id="gpa-scale-name" style="margin-top: 10px;"></div>
+            <button class="link" type="button" data-view-link="settings" style="margin-top: 6px;"><span data-i18n="gpa.changeScale">Change in Settings</span></button>
+          </article>
+        </div>
+
+        <div class="gpa-layout">
+          <article class="card flat">
+            <table class="table" id="gpa-table">
+              <thead>
+                <tr>
+                  <th data-i18n="gpa.course">Course</th>
+                  <th class="num" data-i18n="gpa.credits">Credits</th>
+                  <th data-i18n="gpa.grade">Grade</th>
+                  <th class="num" data-i18n="gpa.points">Points</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="gpa-rows"></tbody>
+            </table>
+            <div id="gpa-empty"></div>
+          </article>
+          <aside class="card">
+            <h2 class="h3" data-i18n="gpa.planner">Target planner</h2>
+            <p class="hint" style="margin: 4px 0 14px;" data-i18n="gpa.plannerHint">See the average you need in your remaining credits to reach a target cumulative GPA.</p>
+            <div class="field" style="margin-bottom: 10px;">
+              <label for="plan-target" data-i18n="gpa.target">Target cumulative GPA</label>
+              <input class="input" type="number" id="plan-target" step="0.01" min="0" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="plan-credits" data-i18n="gpa.remainingCredits">Remaining credits</label>
+              <input class="input" type="number" id="plan-credits" step="1" min="1" inputmode="numeric" value="15">
+            </div>
+            <div class="planner-result" id="plan-result"></div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ---------- Focus timer ---------- -->
+      <section class="view page" id="view-focus" hidden>
+        <header class="page-header">
+          <div>
+            <h1 class="title" data-i18n="focus.title">Focus timer</h1>
+            <p class="subtitle" data-i18n="focus.subtitle">Work in focused sessions with the Pomodoro technique.</p>
+          </div>
+        </header>
+        <div class="focus-layout">
+          <article class="card timer-card">
+            <div class="segmented" id="timer-modes" role="tablist">
+              <button type="button" class="is-active" data-mode="work" role="tab" data-i18n="focus.mode.work">Focus</button>
+              <button type="button" data-mode="short" role="tab" data-i18n="focus.mode.short">Short break</button>
+              <button type="button" data-mode="long" role="tab" data-i18n="focus.mode.long">Long break</button>
+            </div>
+            <div class="ring-wrap">
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="ring-track" cx="50" cy="50" r="46" fill="none" stroke-width="3"></circle>
+                <circle class="ring-progress" id="ring-progress" cx="50" cy="50" r="46" fill="none" stroke-width="5" stroke-linecap="round" stroke-dasharray="289.03" stroke-dashoffset="0"></circle>
+              </svg>
+              <div class="ring-center">
+                <div class="timer-display num" id="timer-display">25:00</div>
+                <div class="timer-label" id="timer-label" data-i18n="focus.label.work">Focus session</div>
+                <div class="timer-task" id="timer-task"></div>
+              </div>
+            </div>
+            <div class="timer-controls">
+              <button class="btn-circle" type="button" id="btn-timer-reset" data-i18n-title="focus.reset"><span data-icon="rotate-ccw"></span></button>
+              <button class="btn-big" type="button" id="btn-timer-toggle" data-i18n-title="focus.start"><span data-icon="play" id="timer-toggle-icon"></span></button>
+              <button class="btn-circle" type="button" id="btn-timer-skip" data-i18n-title="focus.skip"><span data-icon="skip-forward" class="flip-wrap"></span></button>
+            </div>
+            <div class="cycle-dots" id="cycle-dots" aria-hidden="true"></div>
+            <p class="hint" id="timer-stats"></p>
+          </article>
+
+          <div class="focus-side">
+            <article class="card">
+              <div class="card-head" style="margin-bottom: 10px;"><h2 class="h3" data-i18n="focus.focusingOn">Focusing on</h2></div>
+              <select class="select" id="focus-task"></select>
+            </article>
+            <article class="card">
+              <div class="card-head" style="margin-bottom: 10px;"><h2 class="h3" data-i18n="focus.sounds">Ambient sounds</h2><button class="btn subtle icon-only sm" type="button" id="btn-sound-off" data-i18n-title="focus.soundOff" hidden><span data-icon="volume-x"></span></button></div>
+              <div class="sound-grid" id="sound-grid">
+                <button type="button" class="sound-btn" data-sound="rain"><span data-icon="cloud-rain"></span><span data-i18n="focus.sound.rain">Rain</span></button>
+                <button type="button" class="sound-btn" data-sound="cafe"><span data-icon="coffee"></span><span data-i18n="focus.sound.cafe">Café</span></button>
+                <button type="button" class="sound-btn" data-sound="white"><span data-icon="waves"></span><span data-i18n="focus.sound.white">White noise</span></button>
+                <button type="button" class="sound-btn" data-sound="brown"><span data-icon="audio-lines"></span><span data-i18n="focus.sound.brown">Brown noise</span></button>
+              </div>
+              <div class="field" style="margin-top: 14px;">
+                <label for="sound-volume" class="caption" data-i18n="focus.volume">Volume</label>
+                <input type="range" class="range" id="sound-volume" min="0" max="100" value="60">
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-head" style="margin-bottom: 10px;"><h2 class="h3" data-i18n="focus.durations">Durations (minutes)</h2></div>
+              <div class="duration-grid">
+                <div class="field"><label for="dur-work" data-i18n="focus.mode.work">Focus</label><input class="input" type="number" id="dur-work" min="1" max="180" inputmode="numeric"></div>
+                <div class="field"><label for="dur-short" data-i18n="focus.mode.short">Short break</label><input class="input" type="number" id="dur-short" min="1" max="60" inputmode="numeric"></div>
+                <div class="field"><label for="dur-long" data-i18n="focus.mode.long">Long break</label><input class="input" type="number" id="dur-long" min="1" max="120" inputmode="numeric"></div>
+              </div>
+              <p class="hint" style="margin-top: 10px;" id="focus-long-every"></p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- Settings ---------- -->
+      <section class="view page" id="view-settings" hidden>
+        <header class="page-header">
+          <div>
+            <h1 class="title" data-i18n="settings.title">Settings</h1>
+            <p class="subtitle" data-i18n="settings.subtitle">Make ScholarSync fit the way you study.</p>
+          </div>
+        </header>
+
+        <div class="settings-group">
+          <h2 class="h3" data-i18n="settings.appearance">Appearance</h2>
+          <div class="card settings-card">
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.language">Language</div><div class="setting-desc" data-i18n="settings.languageDesc">Interface language and layout direction.</div></div>
+              <div class="setting-control"><select class="select" id="set-language"><option value="en">English</option><option value="ar">العربية</option></select></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.theme">App theme</div><div class="setting-desc" data-i18n="settings.themeDesc">Follow Windows or pick light or dark.</div></div>
+              <div class="setting-control"><select class="select" id="set-theme"><option value="system" data-i18n="settings.theme.system">Use system setting</option><option value="light" data-i18n="settings.theme.light">Light</option><option value="dark" data-i18n="settings.theme.dark">Dark</option></select></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.timeFormat">Time format</div><div class="setting-desc" data-i18n="settings.timeFormatDesc">How class times are displayed.</div></div>
+              <div class="setting-control"><select class="select" id="set-timeformat"><option value="12" data-i18n="settings.time12">12-hour (9:00 AM)</option><option value="24" data-i18n="settings.time24">24-hour (09:00)</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h2 class="h3" data-i18n="settings.week">Study week</h2>
+          <div class="card settings-card">
+            <div class="setting-row column">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.studyDays">Study days</div><div class="setting-desc" data-i18n="settings.studyDaysDesc">Days shown in your timetable. Choose Sunday–Thursday, Monday–Friday or any combination.</div></div>
+              <div class="setting-control"><div class="day-toggles" id="set-days"></div></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.weekStart">Week starts on</div><div class="setting-desc" data-i18n="settings.weekStartDesc">The first day shown in the week view.</div></div>
+              <div class="setting-control"><select class="select" id="set-weekstart"><option value="6"></option><option value="0"></option><option value="1"></option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h2 class="h3" data-i18n="settings.grades">Grades</h2>
+          <div class="card settings-card">
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.gpaScale">Grading scale</div><div class="setting-desc" id="set-scale-desc"></div></div>
+              <div class="setting-control"><select class="select" id="set-scale"></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h2 class="h3" data-i18n="settings.timer">Focus timer</h2>
+          <div class="card settings-card">
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.longEvery">Long break after</div><div class="setting-desc" data-i18n="settings.longEveryDesc">Number of focus sessions before a long break.</div></div>
+              <div class="setting-control"><input class="input narrow" type="number" id="set-longevery" min="2" max="8" inputmode="numeric"><span class="muted" data-i18n="settings.sessions">sessions</span></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.autoBreaks">Auto-start breaks</div><div class="setting-desc" data-i18n="settings.autoBreaksDesc">Start the break as soon as a focus session ends.</div></div>
+              <div class="setting-control"><label class="switch"><input type="checkbox" id="set-autobreaks"><span class="track"></span></label></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.autoWork">Auto-start focus</div><div class="setting-desc" data-i18n="settings.autoWorkDesc">Start the next focus session when a break ends.</div></div>
+              <div class="setting-control"><label class="switch"><input type="checkbox" id="set-autowork"><span class="track"></span></label></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.sound">Completion sound</div><div class="setting-desc" data-i18n="settings.soundDesc">Play a gentle chime when a session ends.</div></div>
+              <div class="setting-control"><label class="switch"><input type="checkbox" id="set-sound"><span class="track"></span></label></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.notifications">Notifications</div><div class="setting-desc" id="set-notif-desc"></div></div>
+              <div class="setting-control"><button class="btn" type="button" id="btn-notif-enable" hidden data-i18n="settings.enableNotif">Allow notifications</button><label class="switch"><input type="checkbox" id="set-notifications"><span class="track"></span></label></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h2 class="h3" data-i18n="settings.data">Your data</h2>
+          <div class="card settings-card">
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.export">Export backup</div><div class="setting-desc" data-i18n="settings.exportDesc">Save all your classes, assignments and grades to a file you can keep or move to another PC.</div></div>
+              <div class="setting-control"><button class="btn" type="button" data-action="export"><span data-icon="download"></span><span data-i18n="settings.exportBtn">Export</span></button></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.import">Restore from backup</div><div class="setting-desc" data-i18n="settings.importDesc">Replace the current data with a ScholarSync backup file.</div></div>
+              <div class="setting-control"><button class="btn" type="button" data-action="import"><span data-icon="upload"></span><span data-i18n="settings.importBtn">Restore</span></button></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title" data-i18n="settings.sample">Load sample data</div><div class="setting-desc" data-i18n="settings.sampleDesc">Fill the app with example classes, tasks and grades to explore it.</div></div>
+              <div class="setting-control"><button class="btn" type="button" data-action="sample"><span data-icon="sparkles"></span><span data-i18n="settings.sampleBtn">Load</span></button></div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-text"><div class="setting-title text-danger" data-i18n="settings.erase">Erase all data</div><div class="setting-desc" data-i18n="settings.eraseDesc">Permanently delete everything stored by ScholarSync on this device.</div></div>
+              <div class="setting-control"><button class="btn danger" type="button" data-action="erase"><span data-icon="trash-2"></span><span data-i18n="settings.eraseBtn">Erase</span></button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h2 class="h3" data-i18n="settings.about">About</h2>
+          <div class="card settings-card">
+            <div class="about">
+              <div class="brand-mark" aria-hidden="true"><span data-icon="graduation-cap"></span></div>
+              <div>
+                <div class="strong">ScholarSync <span class="muted" id="about-version"></span></div>
+                <div class="caption" data-i18n="settings.aboutText">Your private student planner. Everything stays on this device — no account, no tracking.</div>
+                <div class="about-links">
+                  <a href="privacy.html" target="_blank" rel="noopener" id="link-privacy"><span data-i18n="settings.privacy">Privacy policy</span></a>
+                  <a href="mailto:haymohsen@gmail.com?subject=ScholarSync" id="link-support"><span data-i18n="settings.support">Contact support</span></a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===================== Dialogs ===================== -->
+  <dialog class="dialog" id="dlg-class" aria-labelledby="dlg-class-title">
+    <form id="form-class" method="dialog" novalidate>
+      <div class="dialog-head"><h2 class="h2" id="dlg-class-title" data-i18n="dialog.class.add">Add class</h2><button class="btn subtle icon-only" type="button" data-close data-i18n-title="dialog.close"><span data-icon="x"></span></button></div>
+      <div class="dialog-body">
+        <input type="hidden" id="cf-id">
+        <div class="field"><label for="cf-name" data-i18n="dialog.class.name">Course name</label><input class="input" id="cf-name" required maxlength="80" data-i18n-ph="dialog.class.namePh" placeholder="e.g. Calculus II"></div>
+        <div class="form-grid">
+          <div class="field"><label for="cf-day" data-i18n="dialog.class.day">Day</label><select class="select" id="cf-day"></select></div>
+          <div class="field"><label for="cf-location" data-i18n="dialog.class.location">Room / location</label><input class="input" id="cf-location" maxlength="60" data-i18n-ph="dialog.class.locationPh" placeholder="e.g. Hall B 204"></div>
+          <div class="field"><label for="cf-start" data-i18n="dialog.class.start">Start time</label><input class="input" type="time" id="cf-start" required></div>
+          <div class="field"><label for="cf-end" data-i18n="dialog.class.end">End time</label><input class="input" type="time" id="cf-end" required></div>
+          <div class="field span-2"><label for="cf-instructor" data-i18n="dialog.class.instructor">Instructor (optional)</label><input class="input" id="cf-instructor" maxlength="60"></div>
+          <div class="field span-2"><span class="label" data-i18n="dialog.class.color">Color</span><div class="swatches" id="cf-colors"></div><input type="hidden" id="cf-color"></div>
+        </div>
+        <div class="error-text" id="cf-error"></div>
+      </div>
+      <div class="dialog-foot space">
+        <button class="btn danger" type="button" id="cf-delete" hidden><span data-icon="trash-2"></span><span data-i18n="dialog.delete">Delete</span></button>
+        <div style="display:flex; gap:8px; margin-inline-start:auto;">
+          <button class="btn" type="button" data-close data-i18n="dialog.cancel">Cancel</button>
+          <button class="btn accent" type="submit" data-i18n="dialog.save">Save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-assignment" aria-labelledby="dlg-assignment-title">
+    <form id="form-assignment" method="dialog" novalidate>
+      <div class="dialog-head"><h2 class="h2" id="dlg-assignment-title" data-i18n="dialog.assignment.add">Add assignment</h2><button class="btn subtle icon-only" type="button" data-close data-i18n-title="dialog.close"><span data-icon="x"></span></button></div>
+      <div class="dialog-body">
+        <input type="hidden" id="af-id">
+        <div class="field"><label for="af-title" data-i18n="dialog.assignment.title">Title</label><input class="input" id="af-title" required maxlength="120" data-i18n-ph="dialog.assignment.titlePh" placeholder="e.g. Problem set 4"></div>
+        <div class="form-grid">
+          <div class="field span-2"><label for="af-course" data-i18n="dialog.assignment.course">Course (optional)</label><input class="input" id="af-course" list="course-names" maxlength="80"><datalist id="course-names"></datalist></div>
+          <div class="field"><label for="af-due" data-i18n="dialog.assignment.due">Due date</label><input class="input" type="date" id="af-due" required></div>
+          <div class="field"><label for="af-time" data-i18n="dialog.assignment.time">Due time (optional)</label><input class="input" type="time" id="af-time"></div>
+          <div class="field span-2"><label for="af-priority" data-i18n="dialog.assignment.priority">Priority</label>
+            <select class="select" id="af-priority"><option value="low" data-i18n="as.priority.low">Low</option><option value="normal" selected data-i18n="as.priority.normal">Normal</option><option value="high" data-i18n="as.priority.high">High</option></select></div>
+          <div class="field span-2"><label for="af-notes" data-i18n="dialog.assignment.notes">Notes (optional)</label><textarea class="textarea" id="af-notes" maxlength="1000"></textarea></div>
+        </div>
+        <div class="error-text" id="af-error"></div>
+      </div>
+      <div class="dialog-foot space">
+        <button class="btn danger" type="button" id="af-delete" hidden><span data-icon="trash-2"></span><span data-i18n="dialog.delete">Delete</span></button>
+        <div style="display:flex; gap:8px; margin-inline-start:auto;">
+          <button class="btn" type="button" data-close data-i18n="dialog.cancel">Cancel</button>
+          <button class="btn accent" type="submit" data-i18n="dialog.save">Save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-course" aria-labelledby="dlg-course-title">
+    <form id="form-course" method="dialog" novalidate>
+      <div class="dialog-head"><h2 class="h2" id="dlg-course-title" data-i18n="dialog.course.add">Add course</h2><button class="btn subtle icon-only" type="button" data-close data-i18n-title="dialog.close"><span data-icon="x"></span></button></div>
+      <div class="dialog-body">
+        <input type="hidden" id="gf-id">
+        <div class="field"><label for="gf-name" data-i18n="dialog.course.name">Course name</label><input class="input" id="gf-name" required maxlength="80" list="course-names-2" data-i18n-ph="dialog.course.namePh" placeholder="e.g. Physics I"><datalist id="course-names-2"></datalist></div>
+        <div class="form-grid">
+          <div class="field"><label for="gf-credits" data-i18n="dialog.course.credits">Credit hours</label><input class="input" type="number" id="gf-credits" required min="0.5" max="30" step="0.5" value="3" inputmode="decimal"></div>
+          <div class="field"><label for="gf-grade" data-i18n="dialog.course.grade">Grade</label><div id="gf-grade-wrap"></div></div>
+          <div class="field span-2"><label for="gf-semester" data-i18n="dialog.course.semester">Semester</label><select class="select" id="gf-semester"></select></div>
+        </div>
+        <div class="error-text" id="gf-error"></div>
+      </div>
+      <div class="dialog-foot space">
+        <button class="btn danger" type="button" id="gf-delete" hidden><span data-icon="trash-2"></span><span data-i18n="dialog.delete">Delete</span></button>
+        <div style="display:flex; gap:8px; margin-inline-start:auto;">
+          <button class="btn" type="button" data-close data-i18n="dialog.cancel">Cancel</button>
+          <button class="btn accent" type="submit" data-i18n="dialog.save">Save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-semester" aria-labelledby="dlg-semester-title">
+    <form id="form-semester" method="dialog" novalidate>
+      <div class="dialog-head"><h2 class="h2" id="dlg-semester-title" data-i18n="dialog.semester.add">Add semester</h2><button class="btn subtle icon-only" type="button" data-close data-i18n-title="dialog.close"><span data-icon="x"></span></button></div>
+      <div class="dialog-body">
+        <input type="hidden" id="sf-id">
+        <div class="field"><label for="sf-name" data-i18n="dialog.semester.name">Semester name</label><input class="input" id="sf-name" required maxlength="40" data-i18n-ph="dialog.semester.namePh" placeholder="e.g. Fall 2026"></div>
+        <div class="error-text" id="sf-error"></div>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn" type="button" data-close data-i18n="dialog.cancel">Cancel</button>
+        <button class="btn accent" type="submit" data-i18n="dialog.save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-confirm" aria-labelledby="confirm-title">
+    <div class="dialog-head"><h2 class="h2" id="confirm-title"></h2></div>
+    <div class="dialog-body"><p id="confirm-text" class="muted"></p></div>
+    <div class="dialog-foot">
+      <button class="btn" type="button" data-close data-i18n="dialog.cancel">Cancel</button>
+      <button class="btn danger-fill" type="button" id="confirm-ok"></button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog" id="dlg-welcome" aria-labelledby="welcome-title">
+    <div class="dialog-body" style="padding-top: 24px;">
+      <div class="welcome-hero">
+        <div class="brand-mark" aria-hidden="true"><span data-icon="graduation-cap"></span></div>
+        <h2 class="h2" id="welcome-title" data-i18n="welcome.title">Welcome to ScholarSync</h2>
+        <p class="muted" style="margin-top: 6px;" data-i18n="welcome.text">Your timetable, assignments, grades and focus timer in one place — private and offline.</p>
+      </div>
+      <div class="field"><span class="label" data-i18n="welcome.language">Language</span>
+        <div class="lang-grid">
+          <button type="button" class="lang-btn" data-lang="en">English<small>Left-to-right</small></button>
+          <button type="button" class="lang-btn" data-lang="ar">العربية<small>من اليمين إلى اليسار</small></button>
+        </div>
+      </div>
+      <div class="field"><span class="label" data-i18n="welcome.studyDays">Study days</span>
+        <div class="preset-grid">
+          <button type="button" class="preset-btn" data-preset="sunthu"><span class="strong" data-i18n="welcome.preset.sunThu">Sunday – Thursday</span><small data-i18n="welcome.preset.sunThuHint">Common in Jordan and the Gulf</small></button>
+          <button type="button" class="preset-btn" data-preset="monfri"><span class="strong" data-i18n="welcome.preset.monFri">Monday – Friday</span><small data-i18n="welcome.preset.monFriHint">Europe, Americas and most of Asia</small></button>
+        </div>
+      </div>
+      <div class="field"><label for="welcome-scale" data-i18n="welcome.gpaScale">Grading scale</label><select class="select" id="welcome-scale"></select><span class="caption" id="welcome-scale-desc"></span></div>
+    </div>
+    <div class="dialog-foot space">
+      <button class="btn" type="button" id="welcome-sample"><span data-icon="sparkles"></span><span data-i18n="welcome.sample">Explore with sample data</span></button>
+      <button class="btn accent" type="button" id="welcome-start" data-i18n="welcome.start">Start fresh</button>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <script src="js/icons.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
