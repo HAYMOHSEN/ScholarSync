@@ -1,0 +1,10 @@
+ScholarSync 1.0.1 — fixes the "trial opens Awraq PDF" problem (manifest id collision).
+
+Replace these three files in the ScholarSync GitHub repository (same paths):
+  manifest.webmanifest   ("id" is now "/ScholarSync/")
+  sw.js                  (CACHE_VERSION v1.0.1, so Edge fetches the new manifest)
+  js/store.js            (version shown in Settings > About: 1.0.1)
+
+Then: uninstall ScholarSync and Awraq PDF on your PC (Settings > Apps, and edge://apps),
+generate a fresh Windows package on pwabuilder.com (version 1.0.1), upload it in Partner Center
+as an update, and install the trial again.

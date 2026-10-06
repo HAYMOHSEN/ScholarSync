@@ -4,7 +4,7 @@
 
   const KEY = 'scholarsync.v2';
   const LEGACY_KEY = 'scholarSyncData'; // key used by the first prototype
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
 
   /* ---------------- Grading scales ---------------- */
   const SCALES = {
