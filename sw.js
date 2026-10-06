@@ -1,6 +1,6 @@
 /* ScholarSync service worker — precache the whole app so it works fully offline.
    To ship an update: change CACHE_VERSION (the app shows a "Restart" toast to users). */
-const CACHE_VERSION = 'v1.1.0';
+const CACHE_VERSION = 'v1.2.0';
 const CACHE_NAME = 'scholarsync-' + CACHE_VERSION;
 
 const PRECACHE = [
